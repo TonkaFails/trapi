@@ -1,0 +1,1 @@
+cat data/current_depot.csv | ssh toni@versace "docker run --rm -i -v trash_market_data:/mnt busybox sh -c 'cat > /mnt/current_depot.csv'"

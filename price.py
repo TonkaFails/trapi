@@ -9,6 +9,7 @@ def get_ticker_details(isin):
     
     try:
         response = requests.get(search_url, headers=headers).json()
+        print(response)
         symbol = response['quotes'][0]['symbol']
         ticker = yf.Ticker(symbol)
         
