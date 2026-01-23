@@ -11,3 +11,10 @@ run:
 
 	echo "Move csv to docker volume"
 	./transfer_data
+
+update:
+	echo "Update prices"
+	python price.py
+
+	echo "upload :)"
+	./transfer_data

@@ -7,7 +7,7 @@ RUN pip install flask
 RUN pip install flask-cors
 
 COPY price.py .
-COPY script.py .
+COPY amounts.py .
 COPY api.py .
 
 RUN mkdir /data

@@ -2,71 +2,58 @@ import pandas as pd
 import yfinance as yf
 import requests
 
-# get ticker name by isin and currency of ticker
 def get_ticker_details(isin):
     search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={isin}"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    
     try:
-        response = requests.get(search_url, headers=headers).json()
-        print(response)
+        response = requests.get(search_url, headers={'User-Agent': 'Mozilla/5.0'}).json()
         symbol = response['quotes'][0]['symbol']
-        ticker = yf.Ticker(symbol)
-        
-        info = ticker.info
-        price = info.get('currentPrice') or info.get('regularMarketPrice')
-        currency = info.get('currency', 'EUR')
-        
-        return symbol, price, currency
-    except Exception:
+        info = yf.Ticker(symbol).info
+        return symbol, info.get('currentPrice') or info.get('regularMarketPrice'), info.get('currency', 'EUR')
+    except:
         return None, None, None
+
+def get_rate(base, quote):
+    if base == quote: return 1.0
+    
+    # map for pennies :)
+    mapping = {'GBp': 'GBP', 'GBX': 'GBP', 'ILA': 'ILS', 'ZAc': 'ZAR'}
+    clean_base = mapping.get(base, base)
+    multiplier = 0.01 if base in ['GBp', 'GBX', 'ZAc'] else 1.0
+
+    try:
+        return yf.Ticker(f"{clean_base}{quote}=X").fast_info['last_price'] * multiplier
+    except:
+        try:
+            return (1 / yf.Ticker(f"{quote}{clean_base}=X").fast_info['last_price']) * multiplier
+        except:
+            return None
 
 def update_depot_with_currencies():
     df = pd.read_csv('data/current_depot.csv')
-
-    # current eurusd rate
-    fx = yf.Ticker("EURUSD=X").fast_info['last_price']
-    print(f"1 EUR = {fx:.4f} USD")
-
-    p_eur_list, p_usd_list = [], []
+    cache = {}
+    p_eur, p_usd = [], []
 
     for _, row in df.iterrows():
-        symbol, price, currency = get_ticker_details(row['ISIN'])
+        _, price, currency = get_ticker_details(row['ISIN'])
         
-        p_eur, p_usd = None, None
+        row_eur, row_usd = None, None
+        if price and currency:
+            for target in ['EUR', 'USD']:
+                key = f"{currency}{target}"
+                if key not in cache: cache[key] = get_rate(currency, target)
+                
+                rate = cache[key]
+                if rate:
+                    if target == 'EUR': row_eur = price * rate
+                    if target == 'USD': row_usd = price * rate
         
-        if price:
-            if currency == 'GBp':
-                price /= 100
-                currency = 'GBP'
+        p_eur.append(row_eur)
+        p_usd.append(row_usd)
 
-            # conversion logic
-            if currency == 'EUR':
-                p_eur = price
-                p_usd = price * fx
-            elif currency == 'USD':
-                p_usd = price
-                p_eur = price / fx
-            elif currency == 'GBP':
-                gbp_eur = yf.Ticker("GBPEUR=X").fast_info['last_price']
-                p_eur = price * gbp_eur
-                p_usd = p_eur * fx
-            else:
-                p_eur = price
-                p_usd = price * fx
-
-        p_eur_list.append(p_eur)
-        p_usd_list.append(p_usd)
-
-    df['price_eur'] = p_eur_list
-    df['price_usd'] = p_usd_list
-    df['total_eur'] = df['Shares'] * df['price_eur']
-    df['total_usd'] = df['Shares'] * df['price_usd']
-
-    rounding = ['price_eur', 'price_usd', 'total_eur', 'total_usd']
-    df[rounding] = df[rounding].round(4)
-
-
+    df['price_eur'], df['price_usd'] = p_eur, p_usd
+    df['total_eur'], df['total_usd'] = df['Shares'] * df['price_eur'], df['Shares'] * df['price_usd']
+    
+    df[['price_eur', 'price_usd', 'total_eur', 'total_usd']] = df[['price_eur', 'price_usd', 'total_eur', 'total_usd']].round(4)
     df.to_csv('data/current_depot.csv', index=False)
 
 if __name__ == "__main__":
