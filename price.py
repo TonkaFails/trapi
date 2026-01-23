@@ -1,6 +1,9 @@
 import pandas as pd
 import yfinance as yf
 import requests
+import os
+
+DATA_DIR = os.getenv('DATA_PATH', 'data')
 
 def get_ticker_details(isin):
     search_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={isin}"
@@ -29,7 +32,9 @@ def get_rate(base, quote):
             return None
 
 def update_depot_with_currencies():
-    df = pd.read_csv('data/current_depot.csv')
+    dir = f'{DATA_DIR}/current_depot.csv'
+    df = pd.read_csv(dir)
+
     cache = {}
     p_eur, p_usd = [], []
 
@@ -54,7 +59,7 @@ def update_depot_with_currencies():
     df['total_eur'], df['total_usd'] = df['Shares'] * df['price_eur'], df['Shares'] * df['price_usd']
     
     df[['price_eur', 'price_usd', 'total_eur', 'total_usd']] = df[['price_eur', 'price_usd', 'total_eur', 'total_usd']].round(4)
-    df.to_csv('data/current_depot.csv', index=False)
+    df.to_csv(dir, index=False)
 
 if __name__ == "__main__":
     update_depot_with_currencies()
